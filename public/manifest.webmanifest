@@ -1,0 +1,12 @@
+{
+  "name": "Life Tracker",
+  "short_name": "Life Tracker",
+  "description": "Personal routine and daily life tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
