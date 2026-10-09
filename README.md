@@ -96,3 +96,9 @@ The initial program uses editable placeholder times for prayers. Do not treat th
 ## Current scope
 
 This is the complete deployable foundation. The next natural upgrade is an admin/settings screen for editing the weekly program, prayer-time source, notification lead time, streak/history dashboard, and richer analytics.
+
+
+## Mobile responsive updates
+- Responsive layouts for phones, tablets, and desktop.
+- Larger touch targets for task actions and a bottom-sheet task form on small screens.
+- Day tabs, cards, and notes adapt to narrow viewports to avoid horizontal overflow.

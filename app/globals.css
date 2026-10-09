@@ -162,3 +162,76 @@ footer { display: flex; justify-content: space-between; gap: 12px; color: var(--
   .form-two-columns { grid-template-columns: 1fr; }
   .task-form { padding: 18px; }
 }
+
+/* Mobile-first refinements: comfortable tap targets, no horizontal overflow,
+   and compact layouts for phones and small tablets. */
+html { -webkit-text-size-adjust: 100%; }
+body { overflow-x: hidden; }
+button, input, select, textarea { min-width: 0; }
+button { touch-action: manipulation; }
+.app-shell, .panel, .hero-card, .stat-card, .content-grid, .hero-grid { min-width: 0; }
+.task-main strong, .task-main small { overflow-wrap: anywhere; }
+
+@media (max-width: 800px) {
+  .app-shell { width: 100%; padding: 20px 16px 36px; }
+  .hero-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-grid .hero-card { grid-column: 1 / -1; }
+  .content-grid { grid-template-columns: minmax(0, 1fr); }
+  .notes textarea { min-height: 190px; }
+  .day-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .day-tabs button { min-height: 48px; padding: 8px 6px; }
+}
+
+@media (max-width: 600px) {
+  .app-shell { padding: 14px 12px 28px; }
+  .topbar { flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+  .topbar h1 { font-size: clamp(25px, 7vw, 30px); line-height: 1.12; }
+  .top-actions { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; justify-content: stretch; gap: 8px; }
+  .top-actions button { min-height: 44px; padding: 9px 10px; }
+  .top-actions .ghost { white-space: nowrap; }
+  .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .hero-grid .hero-card { grid-column: auto; }
+  .hero-card, .stat-card { padding: 17px; border-radius: 16px; }
+  .hero-card strong { font-size: 28px; }
+  .stat-card { min-height: 112px; gap: 12px; }
+  .day-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0; }
+  .day-tabs button { min-width: 0; min-height: 46px; font-size: 13px; }
+  .toolbar { align-items: stretch; gap: 8px; }
+  .toolbar button, .toolbar .secondary { min-height: 44px; }
+  .content-grid { gap: 12px; }
+  .panel { padding: 14px; border-radius: 16px; }
+  .panel-head { gap: 10px; align-items: center; }
+  .panel h2 { font-size: 20px; }
+  .panel-head-actions { flex-direction: row; align-items: center; justify-content: flex-end; }
+  .add-task-button, .save-button { min-height: 44px; padding: 11px 13px; }
+  .task-row { grid-template-columns: 30px minmax(0, 1fr); align-items: start; gap: 9px; padding: 12px 10px; }
+  .task-complete { min-height: 34px; min-width: 30px; display: grid; place-items: center; }
+  .task-main { padding-top: 2px; }
+  .task-main strong { font-size: 14px; line-height: 1.35; }
+  .task-main small { font-size: 12px; line-height: 1.4; }
+  .task-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; width: 100%; margin: 2px 0 0; }
+  .task-actions button { min-width: 0; min-height: 42px; padding: 8px 4px; font-size: 12px; }
+  .task-notify { justify-self: end; }
+  .notes textarea { min-height: 160px; }
+  .modal-backdrop { align-items: end; padding: 0; }
+  .task-form { width: 100%; max-width: none; max-height: 92dvh; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); gap: 14px; }
+  .form-heading h3 { font-size: 20px; }
+  .task-form input:not([type="checkbox"]), .task-form select { min-height: 46px; font-size: 16px; }
+  .form-two-columns { grid-template-columns: minmax(0, 1fr); }
+  .form-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .form-actions button { min-height: 46px; }
+  .notes textarea { font-size: 16px; }
+  footer { flex-direction: column; padding: 18px 2px; }
+}
+
+@media (max-width: 360px) {
+  .app-shell { padding-inline: 9px; }
+  .top-actions { grid-template-columns: auto minmax(0, 1fr); }
+  .top-actions button:last-child { grid-column: 1 / -1; }
+  .day-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .panel { padding: 11px; }
+  .panel-head { align-items: flex-start; }
+  .panel-head-actions { flex-direction: column; align-items: stretch; }
+  .add-task-button { white-space: normal; }
+  .task-actions button { font-size: 11px; }
+}
