@@ -235,3 +235,16 @@ button { touch-action: manipulation; }
   .add-task-button { white-space: normal; }
   .task-actions button { font-size: 11px; }
 }
+
+/* Enhanced program, archive and prayer tools */
+.file-import { display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+.toolbar { flex-wrap:wrap; }
+.toolbar .secondary, .toolbar label.secondary { padding:10px 13px; border-radius:12px; }
+.toolbar label select { max-width:115px; margin-left:5px; }
+.prayer-panel { margin: 18px 0; }
+.prayer-panel .panel-head label { display:flex; align-items:center; gap:8px; }
+.prayer-panel .panel-head input { width:130px; }
+.prayer-times { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+.prayer-times > div { display:flex; flex-direction:column; gap:5px; padding:13px; border:1px solid var(--border, rgba(255,255,255,.12)); border-radius:12px; }
+.prayer-times span { font-size:1.15rem; font-weight:700; }
+@media(max-width:650px) { .prayer-times { grid-template-columns:repeat(2,minmax(0,1fr)); } .prayer-panel .panel-head { align-items:flex-start; flex-direction:column; } .toolbar { align-items:stretch; } .toolbar > button, .toolbar > label { width:100%; } }

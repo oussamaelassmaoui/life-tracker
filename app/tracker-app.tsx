@@ -91,6 +91,10 @@ export default function TrackerApp() {
   const [taskCategory, setTaskCategory] = useState("Routine");
   const [taskRequired, setTaskRequired] = useState(true);
   const [taskNotify, setTaskNotify] = useState(false);
+  const [prayerCity, setPrayerCity] = useState("Fes");
+  const [prayerTimes, setPrayerTimes] = useState<Record<string, string> | null>(null);
+  const [historyRange, setHistoryRange] = useState("month");
+  const [busyTransfer, setBusyTransfer] = useState(false);
 
   const today = localDateKey();
 
@@ -119,6 +123,21 @@ export default function TrackerApp() {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     localStorage.setItem("life-tracker-theme", dark ? "dark" : "light");
   }, [dark]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPrayerTimes() {
+      try {
+        const response = await fetch(`https://api.aladhan.com/v1/timingsByCity/${today}?city=${encodeURIComponent(prayerCity)}&country=Morocco&method=21`);
+        if (!response.ok) throw new Error("Prayer times unavailable");
+        const payload = await response.json();
+        const t = payload?.data?.timings;
+        if (!cancelled && t) setPrayerTimes({ Fajr: t.Fajr, Dhuhr: t.Dhuhr, Asr: t.Asr, Maghrib: t.Maghrib, Isha: t.Isha });
+      } catch { if (!cancelled) setPrayerTimes(null); }
+    }
+    fetchPrayerTimes();
+    return () => { cancelled = true; };
+  }, [today, prayerCity]);
 
   async function loadData() {
     setLoading(true);
@@ -187,20 +206,16 @@ export default function TrackerApp() {
     if (!user) return;
     setMessage("");
     const existing = logs.find((l) => l.task_id === task.id && l.date === today);
-    if (existing?.status === "done") {
-      const { error } = await supabase.from("task_logs").delete().eq("task_id", task.id).eq("date", today).eq("user_id", user.id);
-      if (error) { setMessage(`Could not update task: ${error.message}`); return; }
-    } else {
-      const { error } = await supabase.from("task_logs").upsert({
-        user_id: user.id,
-        task_id: task.id,
-        date: today,
-        status: "done",
-        completed_at: new Date().toISOString(),
-      }, { onConflict: "user_id,task_id,date" });
-      if (error) { setMessage(`Could not validate task: ${error.message}`); return; }
-    }
-    await loadData();
+    const wasDone = existing?.status === "done";
+    const previous = logs;
+    const optimistic = wasDone
+      ? logs.filter((l) => !(l.task_id === task.id && l.date === today))
+      : [...logs.filter((l) => !(l.task_id === task.id && l.date === today)), { task_id: task.id, date: today, status: "done" as const, completed_at: new Date().toISOString() }];
+    setLogs(optimistic);
+    const result = wasDone
+      ? await supabase.from("task_logs").delete().eq("task_id", task.id).eq("date", today).eq("user_id", user.id)
+      : await supabase.from("task_logs").upsert({ user_id: user.id, task_id: task.id, date: today, status: "done", completed_at: new Date().toISOString() }, { onConflict: "user_id,task_id,date" });
+    if (result.error) { setLogs(previous); setMessage(`Could not update task: ${result.error.message}`); }
   }
 
   function openNewTask() {
@@ -247,19 +262,80 @@ export default function TrackerApp() {
       : await supabase.from("tasks").insert(values);
     setSavingTask(false);
     if (result.error) { setMessage(`Could not save task: ${result.error.message}`); return; }
+    if (editingTask) setTasks((current) => current.map((t) => t.id === editingTask.id ? { ...t, ...values } : t).sort((a,b) => a.time.localeCompare(b.time)));
+    else {
+      const { data: inserted } = await supabase.from("tasks").select("*").eq("user_id", user.id).eq("weekday", day).eq("title", title).order("created_at", { ascending: false }).limit(1);
+      if (inserted?.[0]) setTasks((current) => [...current, inserted[0] as Task].sort((a,b) => a.time.localeCompare(b.time)));
+      else await loadData();
+    }
     setShowTaskForm(false);
     setEditingTask(null);
-    setMessage(editingTask ? "Task updated." : "Task added.");
-    await loadData();
+    setMessage(editingTask ? "Task updated instantly." : "Task added.");
   }
 
   async function deleteTask(task: Task) {
-    if (!user || !window.confirm(`Delete “${task.title}” from ${days[day]}? Its completion history for this task will also be removed.`)) return;
+    if (!user || !window.confirm(`Remove “${task.title}” from ${days[day]}? Its past history will be preserved.`)) return;
     setMessage("");
-    const { error } = await supabase.from("tasks").delete().eq("id", task.id).eq("user_id", user.id);
-    if (error) { setMessage(`Could not delete task: ${error.message}`); return; }
-    setMessage("Task deleted.");
-    await loadData();
+    setTasks((current) => current.filter((t) => t.id !== task.id));
+    const { error } = await supabase.from("tasks").update({ enabled: false }).eq("id", task.id).eq("user_id", user.id);
+    if (error) { setMessage(`Could not remove task: ${error.message}`); await loadData(); return; }
+    setMessage("Task removed from program. History preserved.");
+  }
+
+  function downloadFile(filename: string, content: string, type = "application/json") {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+  }
+
+  async function exportProgram() {
+    if (!user) return;
+    setBusyTransfer(true);
+    const { data, error } = await supabase.from("tasks").select("weekday,time,title,category,required,enabled,notify").eq("user_id", user.id).eq("enabled", true).order("weekday").order("time");
+    setBusyTransfer(false);
+    if (error) { setMessage(error.message); return; }
+    downloadFile("life-tracker-program.json", JSON.stringify({ format: "life-tracker-program", version: 1, exportedAt: new Date().toISOString(), tasks: data ?? [] }, null, 2));
+    setMessage("Program exported as JSON.");
+  }
+
+  async function importProgram(file?: File) {
+    if (!file || !user) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (parsed?.format !== "life-tracker-program" || !Array.isArray(parsed.tasks)) throw new Error("This is not a Life Tracker program JSON file.");
+      const rows = parsed.tasks.map((t: any) => {
+        if (!Number.isInteger(t.weekday) || t.weekday < 0 || t.weekday > 6 || typeof t.title !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(t.time)) throw new Error("The file contains an invalid task.");
+        return { user_id: user.id, weekday: t.weekday, time: t.time, title: t.title.slice(0,100), category: String(t.category || "Routine"), required: Boolean(t.required), enabled: true, notify: Boolean(t.notify) };
+      });
+      const replace = window.confirm("Press OK to REPLACE the current program, or Cancel to MERGE the imported tasks. History will not be deleted.");
+      setBusyTransfer(true);
+      if (replace) {
+        const { error: disableError } = await supabase.from("tasks").update({ enabled: false }).eq("user_id", user.id).eq("enabled", true);
+        if (disableError) throw disableError;
+      }
+      const { error } = await supabase.from("tasks").insert(rows);
+      if (error) throw error;
+      await loadData(); setMessage(`Imported ${rows.length} tasks. Existing history was preserved.`);
+    } catch (e) { setMessage(e instanceof Error ? e.message : "Could not import program."); }
+    finally { setBusyTransfer(false); }
+  }
+
+  async function exportHistory() {
+    if (!user) return;
+    const from = new Date();
+    if (historyRange === "month") from.setMonth(from.getMonth() - 1);
+    else if (historyRange === "year") from.setFullYear(from.getFullYear() - 1);
+    else from.setFullYear(2000);
+    const startDate = `${from.getFullYear()}-${String(from.getMonth()+1).padStart(2,"0")}-${String(from.getDate()).padStart(2,"0")}`;
+    const { data, error } = await supabase.from("task_logs").select("date,status,completed_at,task_id").eq("user_id", user.id).gte("date", startDate).order("date", { ascending: true });
+    if (error) { setMessage(error.message); return; }
+    const ids = [...new Set((data ?? []).map((l: any) => l.task_id))];
+    const { data: taskData } = ids.length ? await supabase.from("tasks").select("id,title,category,weekday,time").in("id", ids) : { data: [] as any[] };
+    const map = new Map((taskData ?? []).map((t: any) => [t.id, t]));
+    const quote = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [["date","task","category","weekday","time","status","completed_at"], ...(data ?? []).map((l: any) => { const t: any = map.get(l.task_id) || {}; return [l.date,t.title || "(task archived)",t.category,t.weekday == null ? "" : days[t.weekday],t.time,l.status,l.completed_at]; })].map(row => row.map(quote).join(",")).join("\r\n");
+    downloadFile(`life-tracker-history-${historyRange}.csv`, "\ufeff" + csv, "text/csv;charset=utf-8");
+    setMessage("History exported as CSV for Excel.");
   }
 
   async function saveNotes(value: string) {
@@ -402,7 +478,16 @@ export default function TrackerApp() {
       <section className="toolbar">
         <button onClick={seedWeek}>Create my 7-day program</button>
         <button className="secondary" onClick={enablePush}>Enable notifications</button>
+        <button className="secondary" onClick={exportProgram} disabled={busyTransfer}>Export Pro Program</button>
+        <label className="secondary file-import">Import Program<input type="file" accept="application/json,.json" hidden onChange={(e) => { void importProgram(e.target.files?.[0]); e.currentTarget.value = ""; }} /></label>
+        <label className="secondary">History <select value={historyRange} onChange={(e) => setHistoryRange(e.target.value)}><option value="day">Today onward</option><option value="month">Last month</option><option value="year">Last year</option><option value="all">All history</option></select></label>
+        <button className="secondary" onClick={exportHistory}>Export History CSV</button>
         {message && <span className="message" role="status">{message}</span>}
+      </section>
+
+      <section className="panel prayer-panel">
+        <div className="panel-head"><div><span className="eyebrow">PRAYER TIMES</span><h2>Prayer schedule · Morocco</h2></div><label>City <input value={prayerCity} onChange={(e) => setPrayerCity(e.target.value)} placeholder="Fes" /></label></div>
+        {prayerTimes ? <div className="prayer-times">{Object.entries(prayerTimes).map(([name,time]) => <div key={name}><strong>{name}</strong><span>{time}</span></div>)}</div> : <p className="note-tip">Prayer times could not be loaded. Check your connection and city name.</p>}
       </section>
 
       <section className="content-grid">
