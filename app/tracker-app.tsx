@@ -128,6 +128,7 @@ export default function TrackerApp() {
 
   useEffect(() => {
     if (!user) return;
+    const currentUser = user;
     let cancelled = false;
     async function fetchHistory() {
       setHistoryLoading(true);
@@ -137,7 +138,7 @@ export default function TrackerApp() {
       else if (historyRange === "day") from.setHours(0,0,0,0);
       else from.setFullYear(2000, 0, 1);
       const start = `${from.getFullYear()}-${String(from.getMonth()+1).padStart(2,"0")}-${String(from.getDate()).padStart(2,"0")}`;
-      const { data, error } = await supabase.from("task_logs").select("date,status,completed_at,task_id").eq("user_id", user.id).gte("date", start).order("date", { ascending: false }).limit(500);
+      const { data, error } = await supabase.from("task_logs").select("date,status,completed_at,task_id").eq("user_id", currentUser.id).gte("date", start).order("date", { ascending: false }).limit(500);
       if (error) { if (!cancelled) setMessage(`History: ${error.message}`); }
       else {
         const ids = [...new Set((data ?? []).map((l: any) => l.task_id))];
