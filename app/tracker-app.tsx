@@ -95,6 +95,9 @@ export default function TrackerApp() {
   const [prayerTimes, setPrayerTimes] = useState<Record<string, string> | null>(null);
   const [historyRange, setHistoryRange] = useState("month");
   const [busyTransfer, setBusyTransfer] = useState(false);
+  const [weekOverview, setWeekOverview] = useState<Record<number, number>>({});
+  const [historyRows, setHistoryRows] = useState<Array<{date:string; task:string; status:string; completed_at:string|null}>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const today = localDateKey();
 
@@ -113,6 +116,46 @@ export default function TrackerApp() {
     if (!user) return;
     loadData();
   }, [user, day]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("tasks").select("weekday").eq("user_id", user.id).eq("enabled", true).then(({ data }) => {
+      const counts: Record<number, number> = {};
+      (data ?? []).forEach((row: any) => { counts[row.weekday] = (counts[row.weekday] ?? 0) + 1; });
+      setWeekOverview(counts);
+    });
+  }, [user, supabase, day, tasks.length]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    async function fetchHistory() {
+      setHistoryLoading(true);
+      const from = new Date();
+      if (historyRange === "month") from.setMonth(from.getMonth() - 1);
+      else if (historyRange === "year") from.setFullYear(from.getFullYear() - 1);
+      else if (historyRange === "day") from.setHours(0,0,0,0);
+      else from.setFullYear(2000, 0, 1);
+      const start = `${from.getFullYear()}-${String(from.getMonth()+1).padStart(2,"0")}-${String(from.getDate()).padStart(2,"0")}`;
+      const { data, error } = await supabase.from("task_logs").select("date,status,completed_at,task_id").eq("user_id", user.id).gte("date", start).order("date", { ascending: false }).limit(500);
+      if (error) { if (!cancelled) setMessage(`History: ${error.message}`); }
+      else {
+        const ids = [...new Set((data ?? []).map((l: any) => l.task_id))];
+        const { data: taskData } = ids.length ? await supabase.from("tasks").select("id,title").in("id", ids) : { data: [] as any[] };
+        const names = new Map((taskData ?? []).map((t: any) => [t.id, t.title]));
+        if (!cancelled) setHistoryRows((data ?? []).map((l: any) => ({ date:l.date, task:names.get(l.task_id) || "Archived task", status:l.status, completed_at:l.completed_at })));
+      }
+      if (!cancelled) setHistoryLoading(false);
+    }
+    fetchHistory();
+    return () => { cancelled = true; };
+  }, [user, historyRange, supabase, today]);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    }
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("life-tracker-theme");
@@ -357,7 +400,8 @@ export default function TrackerApp() {
         setMessage("Notifications were not allowed.");
         return;
       }
-      const registration = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.register("/sw.js");
+      const registration = await navigator.serviceWorker.ready;
       const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!key) throw new Error("Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY");
       const subscription = await registration.pushManager.subscribe({
@@ -485,9 +529,20 @@ export default function TrackerApp() {
         {message && <span className="message" role="status">{message}</span>}
       </section>
 
+      <section className="panel week-manager">
+        <div className="panel-head"><div><span className="eyebrow">PRO PROGRAM</span><h2>Manage your full 7-day week</h2></div><span className="note-tip">Choose a day to edit its tasks below</span></div>
+        <div className="week-manager-grid">{days.map((name, i) => <button key={name} className={`week-manager-day ${day === i ? "active" : ""}`} onClick={() => { setDay(i); document.querySelector(".content-grid")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><strong>{name}</strong><span>{weekOverview[i] ?? 0} tasks</span><small>{day === i ? "Currently editing" : "Manage day →"}</small></button>)}</div>
+      </section>
+
       <section className="panel prayer-panel">
         <div className="panel-head"><div><span className="eyebrow">PRAYER TIMES</span><h2>Prayer schedule · Morocco</h2></div><label>City <input value={prayerCity} onChange={(e) => setPrayerCity(e.target.value)} placeholder="Fes" /></label></div>
         {prayerTimes ? <div className="prayer-times">{Object.entries(prayerTimes).map(([name,time]) => <div key={name}><strong>{name}</strong><span>{time}</span></div>)}</div> : <p className="note-tip">Prayer times could not be loaded. Check your connection and city name.</p>}
+      </section>
+
+      <section className="panel history-panel" id="history">
+        <div className="panel-head"><div><span className="eyebrow">HISTORY & PROGRESS</span><h2>Activity history</h2></div><label>Period <select value={historyRange} onChange={(e) => setHistoryRange(e.target.value)}><option value="day">Today</option><option value="month">Last month</option><option value="year">Last year</option><option value="all">All history</option></select></label></div>
+        {historyLoading ? <p className="note-tip">Loading history…</p> : historyRows.length === 0 ? <p className="note-tip">No history found for this period yet.</p> : <div className="history-list">{historyRows.map((item, i) => <article className="history-row" key={`${item.date}-${item.task}-${i}`}><div><strong>{item.task}</strong><small>{item.date}{item.completed_at ? ` · ${new Date(item.completed_at).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}` : ""}</small></div><span className={`history-status ${item.status === "done" ? "is-done" : "is-missed"}`}>{item.status === "done" ? "Completed" : "Missed"}</span></article>)}</div>}
+        <p className="note-tip">Showing up to 500 records. Export History CSV for a spreadsheet copy.</p>
       </section>
 
       <section className="content-grid">

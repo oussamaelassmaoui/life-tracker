@@ -248,3 +248,21 @@ button { touch-action: manipulation; }
 .prayer-times > div { display:flex; flex-direction:column; gap:5px; padding:13px; border:1px solid var(--border, rgba(255,255,255,.12)); border-radius:12px; }
 .prayer-times span { font-size:1.15rem; font-weight:700; }
 @media(max-width:650px) { .prayer-times { grid-template-columns:repeat(2,minmax(0,1fr)); } .prayer-panel .panel-head { align-items:flex-start; flex-direction:column; } .toolbar { align-items:stretch; } .toolbar > button, .toolbar > label { width:100%; } }
+
+/* Full-week program and in-app history */
+.week-manager, .history-panel { margin: 22px 0; }
+.week-manager-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:10px; }
+.week-manager-day { display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:15px 12px; border:1px solid var(--border,#293541); border-radius:14px; background:var(--card,#111820); color:inherit; text-align:left; cursor:pointer; }
+.week-manager-day strong { font-size:14px; }
+.week-manager-day span,.week-manager-day small { color:var(--muted,#91a4b8); font-size:12px; }
+.week-manager-day.active { background:#eaf1fa; color:#101820; border-color:#eaf1fa; }
+.week-manager-day.active span,.week-manager-day.active small { color:#334155; }
+.history-list { display:flex; flex-direction:column; gap:8px; max-height:520px; overflow:auto; }
+.history-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 14px; border:1px solid var(--border,#293541); border-radius:12px; }
+.history-row div { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.history-row small { color:var(--muted,#91a4b8); }
+.history-status { white-space:nowrap; font-size:12px; border-radius:999px; padding:5px 9px; }
+.history-status.is-done { background:#123d32; color:#78e2b7; }
+.history-status.is-missed { background:#40272a; color:#ffb3b3; }
+@media(max-width:900px) { .week-manager-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:560px) { .week-manager-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .history-row { align-items:flex-start; } }
